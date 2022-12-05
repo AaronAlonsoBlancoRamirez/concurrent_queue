@@ -11,58 +11,58 @@ static inline
 void ec(int n)
 {
     if (n) {
-        //fprintf(stderr, "pthread failed: %s\n", strerror(n));
+        //fprintf(stderr, "fallo thread: %s\n", strerror(n));
         abort();
     }
 }
 
 
-template <typename T, size_t Capacity = 256>
+template <typename T, size_t capacidad = 256>
 struct Concurrent_Queue
 {
-    T elements[Capacity];
+    T elements[capacidad];
     size_t begin;
     size_t size;
     pthread_mutex_t mutex;
     pthread_cond_t cond_full;
-    pthread_cond_t cond_empty_or_done;
-    int is_done;
+    pthread_cond_t con_finalizado;
+    int flag;
 
-    void done()
+    void finalizado()
     {
         ec(pthread_mutex_lock(&mutex));
-        is_done = 1;
+        flag = 1;
         ec(pthread_mutex_unlock(&mutex));
-        pthread_cond_signal(&cond_empty_or_done);
+        pthread_cond_signal(&con_finalizado);
     }
 
-    void push(T element)
+    void push(T elemento)
     {
         ec(pthread_mutex_lock(&mutex));
-        while (size >= Capacity) {
+        while (size >= capacidad) {
             ec(pthread_cond_wait(&cond_full, &mutex));
         }
 
-        elements[(begin + size) % Capacity] = element;
+        elements[(begin + size) % capacidad] = elemento;
         size += 1;
         ec(pthread_mutex_unlock(&mutex));
-        ec(pthread_cond_signal(&cond_empty_or_done));
+        ec(pthread_cond_signal(&con_finalizado));
     }
 
-    int pop(T* element)
+    int pop(T* elemento)
     {
         ec(pthread_mutex_lock(&mutex));
         while (size == 0) {
-            if (is_done) {
+            if (flag) {
                 ec(pthread_mutex_unlock(&mutex));
-                ec(pthread_cond_signal(&cond_empty_or_done));
+                ec(pthread_cond_signal(&con_finalizado));
                 return 0;
             }
-            ec(pthread_cond_wait(&cond_empty_or_done, &mutex));
+            ec(pthread_cond_wait(&con_finalizado, &mutex));
         }
 
-        if (element) *element = elements[begin];
-        begin = (begin + 1) % Capacity;
+        if (elemento) *element = elements[begin];
+        begin = (begin + 1) % capacidad;
         size -= 1;
 
         ec(pthread_mutex_unlock(&mutex));
@@ -72,7 +72,7 @@ struct Concurrent_Queue
     }
 };
 
-const int ELEMENTS_COUNT = 100;
+const int element_c = 100;
 
 void* consumer(void* arg)
 {
@@ -87,23 +87,23 @@ void* consumer(void* arg)
 }
 
 Concurrent_Queue<int> queue;
-const size_t THREAD_COUNT = 100;
-pthread_t threads[THREAD_COUNT];
+const size_t thread_c = 100;
+pthread_t threads[thread_c];
 
 int main()
 {
 
 
-    for (size_t i = 0; i < THREAD_COUNT; ++i) {
+    for (size_t i = 0; i < thread_c; ++i) {
         ec(pthread_create(&threads[i], NULL, consumer, &queue));
     }
 
-    for (int i = 0; i < ELEMENTS_COUNT; ++i) {
+    for (int i = 0; i < element_c; ++i) {
         queue.push(i);
     }
-    queue.done();
+    queue.finalizado();
 
-    for (size_t i = 0; i < THREAD_COUNT; ++i) {
+    for (size_t i = 0; i < thread_c; ++i) {
         ec(pthread_join(threads[i], NULL));
     }
 
